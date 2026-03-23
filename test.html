@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="th" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Sign Language Translator</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@300;400;500;600;700;800&amp;family=Space+Grotesk:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0e1a;
+      --surface: #131829;
+      --text: #e8eaf0;
+      --primary: #6c5ce7;
+      --secondary: #00cec9;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Noto Sans Thai', 'Space Grotesk', sans-serif; }
+
+    .glass {
+      background: rgba(19, 24, 41, 0.7);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(108, 92, 231, 0.15);
+    }
+
+    .glow-primary { box-shadow: 0 0 30px rgba(108, 92, 231, 0.3); }
+    .glow-secondary { box-shadow: 0 0 20px rgba(0, 206, 201, 0.25); }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.9); opacity: 1; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+    .pulse-ring { animation: pulse-ring 1.5s ease-out infinite; }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .float-anim { animation: float 3s ease-in-out infinite; }
+
+    @keyframes scan-line {
+      0% { top: 0; }
+      100% { top: 100%; }
+    }
+    .scan-line {
+      position: absolute;
+      left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, var(--secondary), transparent);
+      animation: scan-line 2s linear infinite;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.5s ease-out forwards; }
+    .fade-up-d1 { animation-delay: 0.1s; opacity: 0; }
+    .fade-up-d2 { animation-delay: 0.2s; opacity: 0; }
+    .fade-up-d3 { animation-delay: 0.3s; opacity: 0; }
+    .fade-up-d4 { animation-delay: 0.4s; opacity: 0; }
+
+    .location-card {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .location-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--primary);
+    }
+    .location-card.selected {
+      border-color: var(--secondary);
+      background: rgba(0, 206, 201, 0.08);
+      box-shadow: 0 0 20px rgba(0, 206, 201, 0.15);
+    }
+
+    .translated-text {
+      background: linear-gradient(135deg, rgba(108,92,231,0.1), rgba(0,206,201,0.1));
+      border-left: 3px solid var(--secondary);
+    }
+
+    .analysis-badge {
+      font-size: 0.65rem;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      background: rgba(108, 92, 231, 0.2);
+      color: #a29bfe;
+      border: 1px solid rgba(108, 92, 231, 0.3);
+    }
+
+    .camera-container {
+      position: relative;
+      border-radius: 16px;
+      overflow: hidden;
+      border: 2px solid rgba(108, 92, 231, 0.3);
+    }
+
+    video { transform: scaleX(-1); }
+
+    .hand-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .detection-box {
+      position: absolute;
+      border: 2px solid var(--secondary);
+      border-radius: 8px;
+      pointer-events: none;
+      transition: all 0.3s;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-dot.active { background: #00b894; box-shadow: 0 0 8px #00b894; }
+    .status-dot.inactive { background: #636e72; }
+
+    select {
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23e8eaf0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+    }
+
+    .wave-bar {
+      display: inline-block;
+      width: 3px;
+      margin: 0 1px;
+      background: var(--secondary);
+      border-radius: 2px;
+      animation: wave 0.8s ease-in-out infinite;
+    }
+    .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+    .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+    .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+    .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+    @keyframes wave {
+      0%, 100% { height: 8px; }
+      50% { height: 20px; }
+    }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full" style="background: var(--bg); color: var(--text);">
+  <div id="app" class="h-full w-full overflow-auto"><!-- PAGE 1: Setup -->
+   <div id="page-setup" class="min-h-full w-full flex items-center justify-center p-4">
+    <div class="w-full max-w-lg"><!-- Header -->
+     <div class="text-center mb-8 fade-up">
+      <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl mb-4 float-anim" style="background: linear-gradient(135deg, var(--primary), var(--secondary));">
+       <svg width="40" height="40" viewbox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2" /> <path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2" /> <path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8" /> <path d="M18 8a2 2 0 0 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15" />
+       </svg>
+      </div>
+      <h1 id="app-title" class="text-3xl font-bold mb-2" style="background: linear-gradient(135deg, #e8eaf0, var(--secondary)); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">AI แปลภาษามือ</h1>
+      <p class="text-sm opacity-60">วิเคราะห์ใบหน้า ท่าทาง และมือ ด้วย AI</p>
+     </div><!-- Language Select -->
+     <div class="glass rounded-2xl p-5 mb-4 fade-up fade-up-d1"><label class="text-xs font-semibold uppercase tracking-wider opacity-50 mb-2 block">🌐 ภาษาที่ต้องการแปล</label> <select id="lang-select" class="w-full rounded-xl px-4 py-3 text-sm font-medium" style="background: rgba(10,14,26,0.8); color: var(--text); border: 1px solid rgba(108,92,231,0.3);"> <option value="th">🇹🇭 ภาษาไทย</option> <option value="en">🇬🇧 English</option> <option value="ja">🇯🇵 日本語</option> <option value="zh">🇨🇳 中文</option> <option value="ko">🇰🇷 한국어</option> </select>
+     </div><!-- Location Select -->
+     <div class="glass rounded-2xl p-5 mb-6 fade-up fade-up-d2"><label class="text-xs font-semibold uppercase tracking-wider opacity-50 mb-3 block">📍 เลือกสถานที่</label>
+      <div class="grid grid-cols-2 gap-2" id="location-grid">
+      </div>
+     </div><!-- Start Button --> <button id="btn-start" onclick="goToMain()" class="w-full py-4 rounded-2xl font-bold text-lg transition-all duration-300 fade-up fade-up-d3 opacity-50 cursor-not-allowed" style="background: linear-gradient(135deg, var(--primary), #5a4bd1); color: white;" disabled> เริ่มแปลภาษามือ → </button>
+     <p id="start-hint" class="text-center text-xs mt-3 opacity-40 fade-up fade-up-d4">กรุณาเลือกสถานที่ก่อนเริ่มใช้งาน</p>
+    </div>
+   </div><!-- PAGE 2: Main AI System -->
+   <div id="page-main" class="min-h-full w-full p-4" style="display:none;">
+    <div class="w-full max-w-2xl mx-auto"><!-- Top Bar -->
+     <div class="flex items-center justify-between mb-4"><button onclick="goToSetup()" class="glass rounded-xl px-3 py-2 text-sm flex items-center gap-2 hover:border-purple-400 transition-colors"> <i data-lucide="arrow-left" style="width:16px;height:16px;"></i> กลับ </button>
+      <div class="flex items-center gap-2"><span class="status-dot" id="camera-status"></span> <span class="text-xs opacity-60" id="camera-status-text">กล้องปิด</span>
+      </div>
+      <div class="glass rounded-xl px-3 py-2 text-xs flex items-center gap-2"><span id="current-location-icon"></span> <span id="current-location-name"></span>
+      </div>
+     </div><!-- Camera Area -->
+     <div class="camera-container w-full mb-4" style="aspect-ratio: 4/3; background: var(--surface);">
+      <video id="camera-video" autoplay playsinline class="w-full h-full object-cover" style="display:none;"></video>
+      <div class="hand-overlay" id="overlay">
+       <div class="scan-line" id="scan-line" style="display:none;"></div>
+      </div><!-- Placeholder when camera off -->
+      <div id="camera-placeholder" class="absolute inset-0 flex flex-col items-center justify-center gap-4">
+       <div class="w-24 h-24 rounded-full flex items-center justify-center" style="background: rgba(108,92,231,0.15); border: 2px dashed rgba(108,92,231,0.3);"><i data-lucide="camera" style="width:40px;height:40px;color:var(--primary);"></i>
+       </div><button id="btn-open-camera" onclick="toggleCamera()" class="px-6 py-3 rounded-xl font-semibold text-sm glow-primary transition-all hover:scale-105" style="background: var(--primary); color: white;"> 📷 เปิดกล้อง </button>
+      </div>
+     </div><!-- Analysis Indicators -->
+     <div class="flex gap-2 mb-4 flex-wrap" id="analysis-badges"><span class="analysis-badge flex items-center gap-1"><span class="status-dot inactive" id="dot-face"></span> ใบหน้า</span> <span class="analysis-badge flex items-center gap-1"><span class="status-dot inactive" id="dot-gesture"></span> ท่าทาง</span> <span class="analysis-badge flex items-center gap-1"><span class="status-dot inactive" id="dot-hand"></span> มือ</span> <span class="analysis-badge flex items-center gap-1" id="emotion-badge">😐 -</span>
+     </div><!-- Translation Output -->
+     <div class="glass rounded-2xl p-5 mb-4">
+      <div class="flex items-center justify-between mb-3">
+       <h3 class="text-sm font-semibold opacity-70">💬 ข้อความที่แปลแล้ว</h3>
+       <div class="flex gap-2"><button onclick="speakText()" id="btn-speak" class="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-all hover:scale-105" style="background: rgba(0,206,201,0.15); color: var(--secondary); border: 1px solid rgba(0,206,201,0.3);"> <i data-lucide="volume-2" style="width:14px;height:14px;"></i> อ่านเสียง </button> <button onclick="clearTranslation()" class="px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1 transition-all hover:scale-105" style="background: rgba(108,92,231,0.15); color: #a29bfe; border: 1px solid rgba(108,92,231,0.3);"> <i data-lucide="trash-2" style="width:14px;height:14px;"></i> ล้าง </button>
+       </div>
+      </div>
+      <div id="translation-output" class="translated-text rounded-xl p-4 min-h-[80px] text-base leading-relaxed" style="color: var(--text);"><span class="opacity-40 text-sm">รอการแปล...</span>
+      </div><!-- Speaking indicator -->
+      <div id="speaking-indicator" class="mt-3 flex items-center gap-2" style="display:none;">
+       <div class="flex items-end h-5"><span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span><span class="wave-bar"></span>
+       </div><span class="text-xs" style="color: var(--secondary);">กำลังอ่านออกเสียง...</span>
+      </div>
+     </div><!-- Sign History -->
+     <div class="glass rounded-2xl p-5">
+      <h3 class="text-sm font-semibold opacity-70 mb-3">🕐 ประวัติการแปล</h3>
+      <div id="history-list" class="space-y-2 max-h-48 overflow-auto">
+       <p class="text-xs opacity-30 text-center py-4">ยังไม่มีประวัติ</p>
+      </div>
+     </div>
+    </div>
+   </div>
+  </div>
+  <script>
+  // State
+  let selectedLocation = null;
+  let cameraOn = false;
+  let stream = null;
+  let analysisInterval = null;
+  let translationHistory = [];
+  let currentTranslation = '';
+
+  const locations = [
+    { id: 'hospital', icon: '🏥', name: 'โรงพยาบาล', phrases: ['ปวดหัว','ปวดท้อง','ช่วยด้วย','ต้องการหมอ','แพ้ยา','เจ็บตรงนี้','ขอน้ำ','ขอบคุณ'] },
+    { id: 'police', icon: '🚔', name: 'สถานีตำรวจ', phrases: ['ช่วยด้วย','ถูกขโมย','หลงทาง','ต้องการแจ้งความ','ขอความช่วยเหลือ','ขอบคุณ'] },
+    { id: 'clinic', icon: '🩺', name: 'คลินิก', phrases: ['นัดหมอ','ไม่สบาย','ต้องการยา','ปวดฟัน','ตรวจสุขภาพ','ขอบคุณ'] },
+    { id: 'airport', icon: '✈️', name: 'สนามบิน', phrases: ['เช็คอิน','ประตูขึ้นเครื่อง','กระเป๋าหาย','ต้องการความช่วยเหลือ','ห้องน้ำอยู่ไหน','ขอบคุณ'] },
+    { id: 'transport', icon: '🚌', name: 'ขนส่งสาธารณะ', phrases: ['ไปที่ไหน','ค่าโดยสาร','จอดที่นี่','ต้องการลง','ขอบคุณ','ช่วยด้วย'] },
+    { id: 'bank', icon: '🏦', name: 'ธนาคาร', phrases: ['เปิดบัญชี','ถอนเงิน','ฝากเงิน','โอนเงิน','ขอความช่วยเหลือ','ขอบคุณ'] },
+    { id: 'office', icon: '🏢', name: 'สำนักงาน', phrases: ['นัดประชุม','ต้องการเอกสาร','ลงทะเบียน','สอบถาม','ขอบคุณ','ช่วยด้วย'] },
+    { id: 'company', icon: '💼', name: 'บริษัท', phrases: ['สมัครงาน','นัดสัมภาษณ์','ต้องการข้อมูล','พบผู้จัดการ','ขอบคุณ','สวัสดี'] },
+  ];
+
+  const emotions = ['😊 มีความสุข','😢 เศร้า','😠 โกรธ','😨 กลัว','😐 เฉยๆ','🤔 สงสัย','😰 กังวล','😊 สุข'];
+
+  // Build location grid
+  function buildLocations() {
+    const grid = document.getElementById('location-grid');
+    grid.innerHTML = locations.map(l => `
+      <button class="location-card glass rounded-xl p-3 text-left transition-all" data-id="${l.id}" onclick="selectLocation('${l.id}')">
+        <span class="text-2xl">${l.icon}</span>
+        <p class="text-sm font-medium mt-1">${l.name}</p>
+      </button>
+    `).join('');
+  }
+
+  function selectLocation(id) {
+    selectedLocation = locations.find(l => l.id === id);
+    document.querySelectorAll('.location-card').forEach(c => c.classList.remove('selected'));
+    document.querySelector(`[data-id="${id}"]`).classList.add('selected');
+    const btn = document.getElementById('btn-start');
+    btn.disabled = false;
+    btn.classList.remove('opacity-50', 'cursor-not-allowed');
+    btn.classList.add('hover:scale-105', 'glow-primary');
+    document.getElementById('start-hint').textContent = `เลือกแล้ว: ${selectedLocation.icon} ${selectedLocation.name}`;
+  }
+
+  function goToMain() {
+    if (!selectedLocation) return;
+    document.getElementById('page-setup').style.display = 'none';
+    document.getElementById('page-main').style.display = 'block';
+    document.getElementById('current-location-icon').textContent = selectedLocation.icon;
+    document.getElementById('current-location-name').textContent = selectedLocation.name;
+    lucide.createIcons();
+  }
+
+  function goToSetup() {
+    stopCamera();
+    document.getElementById('page-main').style.display = 'none';
+    document.getElementById('page-setup').style.display = 'flex';
+  }
+
+  async function toggleCamera() {
+    if (cameraOn) {
+      stopCamera();
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+      const video = document.getElementById('camera-video');
+      video.srcObject = stream;
+      video.style.display = 'block';
+      document.getElementById('camera-placeholder').style.display = 'none';
+      document.getElementById('scan-line').style.display = 'block';
+      cameraOn = true;
+      updateCameraStatus(true);
+      startAnalysis();
+    } catch (e) {
+      showInlineMessage('ไม่สามารถเปิดกล้องได้ กรุณาอนุญาตการเข้าถึงกล้อง');
+    }
+  }
+
+  function stopCamera() {
+    if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+    document.getElementById('camera-video').style.display = 'none';
+    document.getElementById('camera-placeholder').style.display = 'flex';
+    document.getElementById('scan-line').style.display = 'none';
+    cameraOn = false;
+    updateCameraStatus(false);
+    stopAnalysis();
+    ['dot-face','dot-gesture','dot-hand'].forEach(id => {
+      document.getElementById(id).className = 'status-dot inactive';
+    });
+  }
+
+  function updateCameraStatus(on) {
+    document.getElementById('camera-status').className = on ? 'status-dot active' : 'status-dot inactive';
+    document.getElementById('camera-status-text').textContent = on ? 'กล้องเปิด' : 'กล้องปิด';
+  }
+
+  // Simulated AI analysis
+  function startAnalysis() {
+    if (analysisInterval) clearInterval(analysisInterval);
+
+    // Activate detection dots with staggered timing
+    setTimeout(() => document.getElementById('dot-face').className = 'status-dot active', 500);
+    setTimeout(() => document.getElementById('dot-gesture').className = 'status-dot active', 1000);
+    setTimeout(() => document.getElementById('dot-hand').className = 'status-dot active', 1500);
+
+    analysisInterval = setInterval(() => {
+      if (!cameraOn) return;
+
+      // Random emotion
+      const emo = emotions[Math.floor(Math.random() * emotions.length)];
+      document.getElementById('emotion-badge').textContent = emo;
+
+      // Random phrase from location context
+      if (selectedLocation && Math.random() > 0.4) {
+        const phrase = selectedLocation.phrases[Math.floor(Math.random() * selectedLocation.phrases.length)];
+        addTranslation(phrase);
+      }
+    }, 2500);
+  }
+
+  function stopAnalysis() {
+    if (analysisInterval) { clearInterval(analysisInterval); analysisInterval = null; }
+  }
+
+  function addTranslation(text) {
+    currentTranslation = text;
+    const lang = document.getElementById('lang-select').value;
+    let displayText = text;
+
+    // Simple simulated translations
+    const translations = {
+      'en': { 'สวัสดี':'Hello','ขอบคุณ':'Thank you','ช่วยด้วย':'Help!','ปวดหัว':'Headache','ปวดท้อง':'Stomachache','ต้องการหมอ':'Need a doctor','แพ้ยา':'Drug allergy','เจ็บตรงนี้':'It hurts here','ขอน้ำ':'Water please','ถูกขโมย':'Got robbed','หลงทาง':'I\'m lost','ต้องการแจ้งความ':'File a report','ขอความช่วยเหลือ':'Need assistance','นัดหมอ':'Doctor appointment','ไม่สบาย':'Feeling sick','ต้องการยา':'Need medicine','ปวดฟัน':'Toothache','ตรวจสุขภาพ':'Health checkup','เช็คอิน':'Check-in','ประตูขึ้นเครื่อง':'Boarding gate','กระเป๋าหาย':'Lost luggage','ห้องน้ำอยู่ไหน':'Where is the restroom?','ไปที่ไหน':'Where to?','ค่าโดยสาร':'Fare','จอดที่นี่':'Stop here','ต้องการลง':'Want to get off','เปิดบัญชี':'Open account','ถอนเงิน':'Withdraw','ฝากเงิน':'Deposit','โอนเงิน':'Transfer','นัดประชุม':'Meeting appointment','ต้องการเอกสาร':'Need documents','ลงทะเบียน':'Register','สอบถาม':'Inquiry','สมัครงาน':'Apply for job','นัดสัมภาษณ์':'Interview appointment','ต้องการข้อมูล':'Need information','พบผู้จัดการ':'Meet the manager' },
+      'ja': { 'สวัสดี':'こんにちは','ขอบคุณ':'ありがとう','ช่วยด้วย':'助けて！','ปวดหัว':'頭痛','ต้องการหมอ':'医者が必要','ขอน้ำ':'お水ください' },
+      'zh': { 'สวัสดี':'你好','ขอบคุณ':'谢谢','ช่วยด้วย':'救命！','ปวดหัว':'头痛','ต้องการหมอ':'需要医生' },
+      'ko': { 'สวัสดี':'안녕하세요','ขอบคุณ':'감사합니다','ช่วยด้วย':'도와주세요！','ปวดหัว':'두통' },
+    };
+
+    if (lang !== 'th' && translations[lang] && translations[lang][text]) {
+      displayText = translations[lang][text];
+    }
+
+    const output = document.getElementById('translation-output');
+    output.innerHTML = `<span class="text-lg font-semibold">${displayText}</span><br><span class="text-xs opacity-40 mt-1 inline-block">${text !== displayText ? text + ' → ' : ''}ตรวจจับจากภาษามือ</span>`;
+
+    // Add to history
+    const now = new Date();
+    const timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0') + ':' + now.getSeconds().toString().padStart(2,'0');
+    translationHistory.unshift({ text: displayText, original: text, time: timeStr });
+    if (translationHistory.length > 20) translationHistory.pop();
+    renderHistory();
+  }
+
+  function renderHistory() {
+    const list = document.getElementById('history-list');
+    if (translationHistory.length === 0) {
+      list.innerHTML = '<p class="text-xs opacity-30 text-center py-4">ยังไม่มีประวัติ</p>';
+      return;
+    }
+    list.innerHTML = translationHistory.map(h => `
+      <div class="flex items-center justify-between py-2 px-3 rounded-lg" style="background: rgba(10,14,26,0.5);">
+        <span class="text-sm">${h.text}</span>
+        <span class="text-xs opacity-30">${h.time}</span>
+      </div>
+    `).join('');
+  }
+
+  function speakText() {
+    if (!currentTranslation) return;
+    const lang = document.getElementById('lang-select').value;
+    const langMap = { th: 'th-TH', en: 'en-US', ja: 'ja-JP', zh: 'zh-CN', ko: 'ko-KR' };
+    const utterance = new SpeechSynthesisUtterance(currentTranslation);
+    utterance.lang = langMap[lang] || 'th-TH';
+    utterance.rate = 0.9;
+
+    const indicator = document.getElementById('speaking-indicator');
+    indicator.style.display = 'flex';
+    utterance.onend = () => { indicator.style.display = 'none'; };
+    utterance.onerror = () => { indicator.style.display = 'none'; };
+
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utterance);
+  }
+
+  function clearTranslation() {
+    currentTranslation = '';
+    document.getElementById('translation-output').innerHTML = '<span class="opacity-40 text-sm">รอการแปล...</span>';
+    translationHistory = [];
+    renderHistory();
+  }
+
+  function showInlineMessage(msg) {
+    const output = document.getElementById('translation-output');
+    output.innerHTML = `<span class="text-sm" style="color: #fab1a0;">⚠️ ${msg}</span>`;
+    setTimeout(() => {
+      if (!currentTranslation) output.innerHTML = '<span class="opacity-40 text-sm">รอการแปล...</span>';
+    }, 3000);
+  }
+
+  // Init
+  buildLocations();
+
+  // Element SDK
+  const defaultConfig = {
+    app_title: 'AI แปลภาษามือ',
+    camera_button_text: 'เปิดกล้อง',
+    background_color: '#0a0e1a',
+    surface_color: '#131829',
+    text_color: '#e8eaf0',
+    primary_color: '#6c5ce7',
+    secondary_color: '#00cec9',
+    font_family: 'Noto Sans Thai',
+    font_size: 16
+  };
+
+  function applyConfig(config) {
+    const c = { ...defaultConfig, ...config };
+
+    document.getElementById('app-title').textContent = c.app_title;
+    document.getElementById('btn-open-camera').innerHTML = `📷 ${c.camera_button_text}`;
+
+    document.documentElement.style.setProperty('--bg', c.background_color);
+    document.documentElement.style.setProperty('--surface', c.surface_color);
+    document.documentElement.style.setProperty('--text', c.text_color);
+    document.documentElement.style.setProperty('--primary', c.primary_color);
+    document.documentElement.style.setProperty('--secondary', c.secondary_color);
+
+    document.body.style.color = c.text_color;
+    document.body.style.background = c.background_color;
+    document.body.style.fontFamily = `${c.font_family}, Noto Sans Thai, Space Grotesk, sans-serif`;
+
+    const base = c.font_size;
+    document.getElementById('app-title').style.fontSize = `${base * 1.875}px`;
+  }
+
+  if (window.elementSdk) {
+    window.elementSdk.init({
+      defaultConfig,
+      onConfigChange: async (config) => applyConfig(config),
+      mapToCapabilities: (config) => ({
+        recolorables: [
+          { get: () => config.background_color || defaultConfig.background_color, set: v => { config.background_color = v; window.elementSdk.setConfig({ background_color: v }); } },
+          { get: () => config.surface_color || defaultConfig.surface_color, set: v => { config.surface_color = v; window.elementSdk.setConfig({ surface_color: v }); } },
+          { get: () => config.text_color || defaultConfig.text_color, set: v => { config.text_color = v; window.elementSdk.setConfig({ text_color: v }); } },
+          { get: () => config.primary_color || defaultConfig.primary_color, set: v => { config.primary_color = v; window.elementSdk.setConfig({ primary_color: v }); } },
+          { get: () => config.secondary_color || defaultConfig.secondary_color, set: v => { config.secondary_color = v; window.elementSdk.setConfig({ secondary_color: v }); } },
+        ],
+        borderables: [],
+        fontEditable: { get: () => config.font_family || defaultConfig.font_family, set: v => { config.font_family = v; window.elementSdk.setConfig({ font_family: v }); } },
+        fontSizeable: { get: () => config.font_size || defaultConfig.font_size, set: v => { config.font_size = v; window.elementSdk.setConfig({ font_size: v }); } },
+      }),
+      mapToEditPanelValues: (config) => new Map([
+        ['app_title', config.app_title || defaultConfig.app_title],
+        ['camera_button_text', config.camera_button_text || defaultConfig.camera_button_text],
+      ])
+    });
+  }
+
+  lucide.createIcons();
+</script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9e0c0f284727d331',t:'MTc3NDI1NDQ3MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
